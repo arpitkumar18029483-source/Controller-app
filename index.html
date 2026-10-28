@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rail Urja Controller</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#061426;color:#eef7ff;font:16px Arial}
+header{padding:22px;background:#0b2340;border-bottom:1px solid #245079}
+h1{margin:0;color:#53dfff}
+main{max-width:1000px;margin:auto;padding:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:15px}
+.card{background:#102844;border:1px solid #254b70;border-radius:18px;padding:20px}
+.value{font-size:34px;font-weight:bold;margin:15px 0}
+button{border:0;border-radius:10px;padding:12px;margin:4px;background:#167cba;color:white;font-weight:bold;cursor:pointer}
+button:hover{background:#249edc}
+.red{background:#8e2946}
+input,textarea{width:100%;padding:12px;background:#061426;color:white;border:1px solid #315777;border-radius:9px;margin:6px 0}
+.small{color:#9db8d7;font-size:13px}
+.status{color:#53dfff}
+</style>
+</head>
+<body>
+<header>
+<h1>🚆 RAIL URJA</h1>
+<p>Controller Command Centre</p>
+<div id="connection" class="status">● DEMO / OFFLINE</div>
+</header>
+<main>
+<p class="small">Controller changes are sent to the separate Main Display through Firebase.</p>
+
+<div class="grid">
+<div class="card">
+<h3>⚡ Voltage</h3><div class="value"><span id="voltage">3.25</span> V</div>
+<button onclick="change('voltage',-.25)">− 0.25</button>
+<button onclick="change('voltage',.25)">+ 0.25</button>
+</div>
+<div class="card">
+<h3>〽️ Current</h3><div class="value"><span id="current">0.42</span> A</div>
+<button onclick="change('current',-.05)">− 0.05</button>
+<button onclick="change('current',.05)">+ 0.05</button>
+</div>
+<div class="card">
+<h3>🌡️ Temperature</h3><div class="value"><span id="temperature">32.5</span> °C</div>
+<button onclick="change('temperature',-1)">− 1°</button>
+<button onclick="change('temperature',1)">+ 1°</button>
+</div>
+<div class="card">
+<h3>〰️ Vibration</h3><p id="vibrationText">Not detected</p>
+<button onclick="toggle('vibration')">Toggle vibration</button>
+</div>
+<div class="card">
+<h3>🧍 Human / Object Detection</h3><p id="humanText">No object detected</p>
+<button onclick="toggle('human')">Toggle detection</button>
+</div>
+<div class="card">
+<h3>🔔 Alerts</h3><p id="alertText">No active alert</p>
+<button class="red" onclick="alertNow()">Trigger alert</button>
+<button onclick="resetDemo()">Reset demo</button>
+</div>
+</div>
+
+<div class="card" style="margin-top:16px">
+<h3>⚙️ Connect both apps</h3>
+<p class="small">Paste your Firebase Web App config below. Use exactly the same config in both apps.</p>
+<textarea id="config" rows="5" placeholder='Paste Firebase config JSON here'></textarea>
+<button onclick="connect()">Connect Firebase</button>
+<p id="message" class="small">Demo changes remain on this device until Firebase is configured.</p>
+</div>
+</main>
+
+<script>
+const initial={
+ voltage:3.25,current:0.42,temperature:32.5,
+ vibration:false,human:false,
+ alert:{active:false,message:""},
+ updatedAt:Date.now(),source:"controller"
+};
+let s={...initial},db=null,live=false;
+
+function render(){
+ ["voltage","current","temperature"].forEach(k=>{
+ document.getElementById(k).textContent=Number(s[k]).toFixed(k==="temperature"?1:2);
+ });
+ document.getElementById("vibrationText").textContent=s.vibration?"Vibration detected":"Not detected";
+ document.getElementById("humanText").textContent=s.human?"Object detected":"No object detected";
+ document.getElementById("alertText").textContent=s.alert.active?s.alert.message:"No active alert";
+}
+function publish(){
+ s.updatedAt=Date.now();s.source="controller";
+ render();
+ if(live&&db)db.ref("railUrja/current").set(s)
+ .catch(e=>document.getElementById("message").textContent=e.message);
+}
+function change(k,d){
+ const max=k==="voltage"?60:k==="current"?30:120;
+ s[k]=Math.max(0,Math.min(max,Math.round((s[k]+d)*100)/100));
+ publish();
+}
+function toggle(k){
+ s[k]=!s[k];
+ if(k==="human"&&s.human)s.alert={active:true,message:"Object detected (demo)"};
+ publish();
+}
+function alertNow(){
+ s.alert={active:true,message:"Manual alert from Controller App"};
+ publish();
+}
+function resetDemo(){
+ s={...initial,alert:{active:false,message:""},updatedAt:Date.now()};
+ publish();
+}
+function connect(){
+ try{
+  const cfg=JSON.parse(document.getElementById("config").value);
+  if(!cfg.apiKey||!cfg.databaseURL)throw Error("Firebase config needs apiKey and databaseURL");
+  if(!firebase.apps.length)firebase.initializeApp(cfg);
+  db=firebase.database();live=true;
+  document.getElementById("connection").textContent="● LIVE SYNC";
+  document.getElementById("message").textContent="Connected. Open the Main Display and use the same config.";
+  publish();
+ }catch(e){
+  document.getElementById("message").textContent="Connection error: "+e.message;
+ }
+}
+render();
+</script>
+</body>
+</html>
